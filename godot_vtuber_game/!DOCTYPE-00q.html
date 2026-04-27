@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>配信ジャンプゲーム 完全版</title>
+  <style>
+    :root {
+      --ui-z: 40;
+      --overlay-z: 60;
+      --mobile-z: 70;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: #000;
+      overflow: hidden;
+      font-family: sans-serif;
+      touch-action: manipulation;
+      display: grid;
+      place-items: center;
+    }
+
+    #appViewport {
+      position: relative;
+      width: min(100vw, 56.25vh);
+      height: min(100vh, 177.7778vw);
+      max-width: 100vw;
+      max-height: 100vh;
+      aspect-ratio: 9 / 16;
+      overflow: hidden;
+      background: #000;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.12);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    #ui,
+    #combo {
+      position: absolute;
+      left: 10px;
+      color: #fff;
+      font-weight: bold;
+      text-shadow: 2px 2px 4px #000;
+      z-index: var(--ui-z);
+      pointer-events: none;
+    }
+
+    #ui { top: 10px; font-size: clamp(16px, 2.8vw, 22px); }
+    #combo { top: 42px; color: #ffeb3b; font-size: clamp(14px, 2.3vw, 18px); }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      color: #fff;
+      z-index: var(--overlay-z);
+      text-align: center;
+      padding: 16px;
+    }
+
+    #titleScreen {
+      display: flex;
+      background: url("title1.png") center / cover no-repeat;
+    }
+
+    #titleLogoMain {
+      width: min(80vw, 400px);
+      margin-bottom: 28px;
+    }
+
+    #startText {
+      color: #fff;
+      font-size: clamp(20px, 4vw, 28px);
+      font-weight: 700;
+      text-shadow: 2px 2px 6px #000;
+      animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+      0%,100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+
+    #selectScreen {
+      background:
+        linear-gradient(rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0.62)),
+        url("1000031137.png") center / cover no-repeat;
+    }
+
+    #titleLogo {
+      width: min(70vw, 300px);
+      margin-bottom: 12px;
+    }
+
+    .charBox {
+      display: flex;
+      gap: clamp(16px, 8vw, 60px);
+      margin: 8px 0 14px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .char {
+      text-align: center;
+      font-size: 20px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .char img {
+      width: clamp(120px, 26vw, 180px);
+      border: 4px solid transparent;
+      border-radius: 12px;
+      transition: transform .12s ease;
+    }
+
+    .char span {
+      display: block;
+      margin-top: 8px;
+      font-size: clamp(18px, 3.5vw, 22px);
+      font-weight: 700;
+      color: #fff;
+      text-shadow:
+        -2px -2px 0 #000,
+         2px -2px 0 #000,
+        -2px  2px 0 #000,
+         2px  2px 0 #000;
+    }
+
+    .selected img {
+      border-color: #ffeb3b;
+      transform: scale(1.07);
+    }
+
+    #hint {
+      font-size: clamp(14px, 2.5vw, 18px);
+      text-shadow: 2px 2px 6px #000;
+    }
+
+    #mobileControls {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: calc(14px + var(--safe-bottom));
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 16px;
+      pointer-events: none;
+      z-index: var(--mobile-z);
+    }
+
+    .ctrl {
+      width: clamp(64px, 16vw, 84px);
+      height: clamp(64px, 16vw, 84px);
+      border-radius: 50%;
+      border: 2px solid #fff;
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+      font-size: clamp(26px, 5vw, 32px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      user-select: none;
+      pointer-events: auto;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #gameOverUI {
+      background: rgba(0, 0, 0, 0.72);
+    }
+
+    #gameOverUI h1 {
+      font-size: clamp(30px, 7vw, 40px);
+      margin: 0 0 16px;
+    }
+
+    #gameOverUI p {
+      font-size: clamp(20px, 4.6vw, 24px);
+      margin: 0 0 16px;
+    }
+
+    #backBtn {
+      padding: 10px 20px;
+      font-size: clamp(16px, 3.4vw, 20px);
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      #mobileControls { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="appViewport">
+    <div id="titleScreen" class="screen">
+      <img src="tobidase.png" id="titleLogoMain" alt="title" />
+      <div id="startText">タップしてスタート</div>
+    </div>
+
+    <div id="ui">チャンネル登録者（0人）</div>
+    <div id="combo"></div>
+
+    <div id="selectScreen" class="screen">
+      <img src="tobidase.png" id="titleLogo" alt="logo" />
+      <h1>キャラ選択</h1>
+      <div class="charBox">
+        <div class="char selected" id="char0">
+          <img src="player1.png" alt="ERI" />
+          <span>ERI</span>
+        </div>
+        <div class="char" id="char1">
+          <img src="player2.png" alt="SAKUYA" />
+          <span>SAKUYA</span>
+        </div>
+      </div>
+      <p id="hint">←→で選択 / ↑↓で決定 / タップOK</p>
+    </div>
+
+    <canvas id="game"></canvas>
+
+    <div id="mobileControls">
+      <div class="ctrl" id="leftBtn">◀</div>
+      <div class="ctrl" id="rightBtn">▶</div>
+    </div>
+
+    <div id="gameOverUI" class="screen">
+      <h1>配信終了</h1>
+      <p id="finalScore">登録者：0人</p>
+      <button id="backBtn">キャラ選択に戻る</button>
+    </div>
+  </div>
+
+  <script>
+    const appViewport = document.getElementById("appViewport");
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const ui = document.getElementById("ui");
+    const comboUI = document.getElementById("combo");
+    const titleScreen = document.getElementById("titleScreen");
+    const selectScreen = document.getElementById("selectScreen");
+    const gameOverUI = document.getElementById("gameOverUI");
+    const finalScore = document.getElementById("finalScore");
+
+    const bgm = new Audio("bgmsss.mp3");
+    bgm.loop = true;
+    bgm.volume = 0.5;
+    const jumpSound = new Audio("パッ.mp3");
+    const fallSound = new Audio("間抜け1.mp3");
+
+    let bgmStarted = false;
+    function startBGM() {
+      if (bgmStarted) return;
+      bgm.currentTime = 0;
+      bgm.play().then(() => { bgmStarted = true; }).catch(() => {});
+    }
+
+    const playerImgs = ["player1.png", "player2.png"].map((src) => {
+      const img = new Image();
+      img.src = src;
+      return img;
+    });
+
+    const bgImgs = [
+      "1000031137.png", "1000031138.png", "1000031139.png", "1000031140.png",
+      "1000031141.png", "1000031143.png", "1000031144.png", "1000031145.png"
+    ].map((src) => {
+      const img = new Image();
+      img.src = src;
+      return img;
+    });
+
+    const kansutoImg = new Image();
+    kansutoImg.src = "kansuto.png";
+
+    const chars = [
+      { name: "ERI", jump: -24, accel: 0.5, max: 5 },
+      { name: "SAKUYA", jump: -21, accel: 0.8, max: 8 }
+    ];
+
+    const GRAVITY = 0.7;
+    const PLATFORM_STEP = 110;
+
+    let gameState = "title"; // title / select / game / gameover
+    let gameStarted = false;
+    let gameOver = false;
+
+    let selectedChar = 0;
+    let currentChar = 0;
+
+    let keys = {};
+    let cameraY = 0;
+    let score = 0;
+    let combo = 0;
+    let comboTimer = 0;
+    let kansutoRevealAt = null;
+    let kansutoAlpha = 0;
+
+    let platforms = [];
+    let danmaku = [];
+
+    const texts = ["草", "草", "草", "初見です", "初見です", "8888", "8888", "ナイス！", "うまい！", "神プレイ", "チャンネル登録しました"];
+
+    const player = { x: 0, y: 0, w: 0, h: 0, dx: 0, dy: 0 };
+
+    function getPlayerSize() {
+      return Math.max(60, Math.floor(canvas.width * 0.15));
+    }
+
+    function resizeCanvas() {
+      const rect = appViewport.getBoundingClientRect();
+      canvas.width = Math.floor(rect.width);
+      canvas.height = Math.floor(rect.height);
+      player.w = getPlayerSize();
+      player.h = getPlayerSize();
+      if (!gameStarted) {
+        player.x = rect.width / 2 - player.w / 2;
+        player.y = rect.height - player.h - 50;
+      }
+    }
+
+    function updateSelection() {
+      document.getElementById("char0").classList.toggle("selected", selectedChar === 0);
+      document.getElementById("char1").classList.toggle("selected", selectedChar === 1);
+    }
+
+    function updateUI() {
+      ui.innerText = `チャンネル登録者（${Math.floor(score)}人）`;
+      comboUI.innerText = combo > 1 ? `COMBO x${combo}` : "";
+    }
+
+    function getPlatformFontSize() {
+      return Math.max(12, Math.floor(canvas.width * 0.022));
+    }
+
+    function getPlatformMetrics(text) {
+      const fontSize = getPlatformFontSize();
+      ctx.font = `${fontSize}px sans-serif`;
+      const metrics = ctx.measureText(text);
+      const textWidth = Math.ceil(metrics.width);
+      const horizontalPadding = Math.max(18, Math.floor(fontSize * 0.9));
+      const verticalPadding = Math.max(10, Math.floor(fontSize * 0.55));
+      return {
+        fontSize,
+        w: Math.max(96, textWidth + horizontalPadding * 2),
+        h: Math.max(28, fontSize + verticalPadding * 2)
+      };
+    }
+
+    function createPlatform(y) {
+      const t = texts[Math.floor(Math.random() * texts.length)];
+      const size = getPlatformMetrics(t);
+      platforms.push({
+        x: Math.random() * Math.max(1, (canvas.width - size.w)),
+        y,
+        w: size.w,
+        h: size.h,
+        text: t
+      });
+    }
+
+    function initPlatforms() {
+      platforms = [];
+      const startText = "スタート！";
+      const startSize = getPlatformMetrics(startText);
+      platforms.push({
+        x: canvas.width / 2 - startSize.w / 2,
+        y: canvas.height - 100,
+        w: startSize.w,
+        h: startSize.h,
+        text: startText
+      });
+      const baseY = canvas.height - 200;
+      for (let i = 0; i < 12; i += 1) createPlatform(baseY - i * PLATFORM_STEP);
+    }
+
+    function drawRoundedRect(x, y, w, h, r) {
+      const radius = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + w - radius, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+      ctx.lineTo(x + w, y + h - radius);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+      ctx.lineTo(x + radius, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+    }
+
+    function playJump() {
+      jumpSound.currentTime = 0;
+      jumpSound.play().catch(() => {});
+    }
+
+    function playFall() {
+      fallSound.currentTime = 0;
+      fallSound.play().catch(() => {});
+    }
+
+    function showGameOver() {
+      if (gameState === "gameover") return;
+      gameOver = true;
+      gameStarted = false;
+      gameState = "gameover";
+      finalScore.innerText = `登録者：${Math.floor(score)}人`;
+      gameOverUI.style.display = "flex";
+    }
+
+    function startGame(index) {
+      currentChar = index;
+      gameStarted = true;
+      gameOver = false;
+      gameState = "game";
+      selectScreen.style.display = "none";
+      titleScreen.style.display = "none";
+      gameOverUI.style.display = "none";
+
+      player.x = canvas.width / 2 - player.w / 2;
+      player.y = canvas.height - player.h - 120;
+      player.dx = 0;
+      player.dy = 0;
+
+      cameraY = 0;
+      score = 0;
+      combo = 0;
+      comboTimer = 0;
+      kansutoRevealAt = null;
+      kansutoAlpha = 0;
+      danmaku = [];
+      keys = {};
+
+      initPlatforms();
+      updateUI();
+    }
+
+    function backToSelect() {
+      gameOverUI.style.display = "none";
+      titleScreen.style.display = "none";
+      selectScreen.style.display = "flex";
+
+      gameState = "select";
+      gameStarted = false;
+      gameOver = false;
+      score = 0;
+      combo = 0;
+      comboTimer = 0;
+      kansutoRevealAt = null;
+      kansutoAlpha = 0;
+      cameraY = 0;
+      keys = {};
+      selectedChar = 0;
+      updateSelection();
+      updateUI();
+    }
+
+    function spawnDanmaku() {
+      let list;
+      if (score < 500) list = ["草", "www", "ヤバッ", "草草草"];
+      else if (score < 5000) list = ["すごい", "8888", "ナイス！", "初見です"];
+      else list = ["神回", "最強", "キター！", "伝説"];
+
+      danmaku.push({
+        text: list[Math.floor(Math.random() * list.length)],
+        x: canvas.width,
+        y: Math.random() * canvas.height,
+        speed: 3 + score / 2000
+      });
+    }
+
+    function updateDanmaku() {
+      if (Math.random() < 0.04 + score / 20000) spawnDanmaku();
+      danmaku.forEach((d) => { d.x -= d.speed; });
+      danmaku = danmaku.filter((d) => d.x > -220);
+    }
+
+    function getBGIndex() {
+      if (score < 2000) return 0;
+      if (score < 5000) return 1;
+      if (score < 10000) return 2;
+      const extra = Math.floor((score - 10000) / 5000);
+      return Math.min(3 + extra, bgImgs.length - 1);
+    }
+
+    function update() {
+      const c = chars[currentChar];
+      if (keys.ArrowLeft) player.dx -= c.accel;
+      if (keys.ArrowRight) player.dx += c.accel;
+      player.dx *= 0.9;
+      player.dx = Math.max(-c.max, Math.min(c.max, player.dx));
+      player.x += player.dx;
+      if (player.x < 0) player.x = 0;
+      if (player.x + player.w > canvas.width) player.x = canvas.width - player.w;
+
+      player.dy += GRAVITY;
+      player.y += player.dy;
+
+      for (const p of platforms) {
+        const prev = player.y + player.h - player.dy;
+        const next = player.y + player.h;
+        if (
+          player.dy > 0 &&
+          player.x + player.w > p.x &&
+          player.x < p.x + p.w &&
+          prev <= p.y &&
+          next >= p.y
+        ) {
+          player.y = p.y - player.h;
+          player.dy = p.text === "チャンネル登録しました" ? -32 : c.jump;
+          playJump();
+          combo += 1;
+          comboTimer = 60;
+          break;
+        }
+      }
+
+      if (comboTimer > 0) comboTimer -= 1;
+      else combo = 0;
+
+      if (player.y + cameraY < canvas.height * 0.4) {
+        cameraY += (canvas.height * 0.4 - (player.y + cameraY));
+      }
+
+      score = Math.max(score, Math.floor(cameraY));
+
+      const isFinalBG = getBGIndex() === bgImgs.length - 1;
+      if (isFinalBG) {
+        if (kansutoRevealAt === null) kansutoRevealAt = performance.now() + 2000;
+        if (performance.now() >= kansutoRevealAt) {
+          kansutoAlpha = Math.min(1, kansutoAlpha + 0.03);
+        }
+      } else {
+        kansutoRevealAt = null;
+        kansutoAlpha = 0;
+      }
+
+      let highest = Math.min(...platforms.map((p) => p.y));
+      while (highest + cameraY > -200) {
+        createPlatform(highest - PLATFORM_STEP);
+        highest -= PLATFORM_STEP;
+      }
+
+      platforms = platforms.filter((p) => p.y + cameraY < canvas.height + 100);
+
+      if (player.y > canvas.height + 220) {
+        playFall();
+        showGameOver();
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const bg = bgImgs[getBGIndex()];
+      if (bg && bg.complete) {
+        ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+      }
+
+      if (kansutoImg.complete && kansutoAlpha > 0) {
+        const drawW = Math.min(canvas.width * 1.2, 720);
+        const ratio = kansutoImg.naturalWidth > 0 ? (kansutoImg.naturalHeight / kansutoImg.naturalWidth) : 0.3;
+        const drawH = drawW * ratio;
+        const x = canvas.width / 2 - drawW / 2;
+        const y = 16;
+        ctx.save();
+        ctx.globalAlpha = kansutoAlpha;
+        ctx.drawImage(kansutoImg, x, y, drawW, drawH);
+        ctx.restore();
+      }
+
+      platforms.forEach((p) => {
+        const y = p.y + cameraY;
+        const radius = Math.max(8, Math.floor(p.h * 0.35));
+        const fontSize = getPlatformFontSize();
+        ctx.fillStyle = "#fff";
+        drawRoundedRect(p.x, y, p.w, p.h, radius);
+        ctx.fill();
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        ctx.fillStyle = "#000";
+        ctx.font = `${fontSize}px sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(p.text, p.x + p.w / 2, y + p.h / 2);
+      });
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+
+      const currentPlayer = playerImgs[currentChar];
+      if (currentPlayer && currentPlayer.complete) {
+        ctx.drawImage(currentPlayer, player.x, player.y + cameraY, player.w, player.h);
+      }
+
+      ctx.fillStyle = "#fff";
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 5;
+      ctx.font = `${Math.max(16, Math.floor(canvas.width * 0.038))}px sans-serif`;
+      danmaku.forEach((d) => {
+        ctx.strokeText(d.text, d.x, d.y);
+        ctx.fillText(d.text, d.x, d.y);
+      });
+    }
+
+    function loop() {
+      if (gameStarted && !gameOver) {
+        update();
+        updateDanmaku();
+        updateUI();
+      }
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    document.body.addEventListener("pointerdown", startBGM, { once: true });
+
+    titleScreen.addEventListener("pointerdown", () => {
+      startBGM();
+      titleScreen.style.display = "none";
+      selectScreen.style.display = "flex";
+      gameState = "select";
+    });
+
+    document.addEventListener("keydown", (e) => {
+      keys[e.key] = true;
+
+      if (gameState === "title") {
+        if (e.key === "Enter" || e.key === "ArrowUp" || e.key === "ArrowDown") {
+          titleScreen.style.display = "none";
+          selectScreen.style.display = "flex";
+          gameState = "select";
+          return;
+        }
+      }
+
+      if (!gameStarted && gameState === "select") {
+        if (e.key === "ArrowLeft") selectedChar = 0;
+        if (e.key === "ArrowRight") selectedChar = 1;
+        updateSelection();
+        if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "Enter") {
+          startBGM();
+          startGame(selectedChar);
+        }
+      }
+
+      startBGM();
+    });
+
+    document.addEventListener("keyup", (e) => { keys[e.key] = false; });
+
+    function bindHoldButton(el, key) {
+      const on = (event) => {
+        event.preventDefault();
+        keys[key] = true;
+      };
+      const off = (event) => {
+        event.preventDefault();
+        keys[key] = false;
+      };
+      el.addEventListener("pointerdown", on);
+      el.addEventListener("pointerup", off);
+      el.addEventListener("pointercancel", off);
+      el.addEventListener("pointerleave", off);
+      el.addEventListener("touchstart", on, { passive: false });
+      el.addEventListener("touchend", off, { passive: false });
+      el.addEventListener("touchcancel", off, { passive: false });
+    }
+
+    bindHoldButton(document.getElementById("leftBtn"), "ArrowLeft");
+    bindHoldButton(document.getElementById("rightBtn"), "ArrowRight");
+
+    document.getElementById("char0").addEventListener("click", () => { startBGM(); startGame(0); });
+    document.getElementById("char1").addEventListener("click", () => { startBGM(); startGame(1); });
+    document.getElementById("backBtn").addEventListener("click", backToSelect);
+
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+    updateSelection();
+    updateUI();
+    loop();
+  </script>
+</body>
+</html>
